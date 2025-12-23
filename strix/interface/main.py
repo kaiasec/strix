@@ -36,7 +36,27 @@ from strix.runtime.docker_runtime import STRIX_IMAGE
 from strix.telemetry.tracer import get_global_tracer
 
 
-logging.getLogger().setLevel(logging.ERROR)
+##logging.getLogger().setLevel(logging.ERROR)
+# 设置日志级别为 INFO，并将日志只输出到文件
+logging.getLogger().setLevel(logging.INFO)
+
+# 配置日志只输出到文件，不输出到终端
+file_handler = logging.FileHandler('strix.log')
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# 清除所有现有的处理器
+root_logger = logging.getLogger()
+handlers = root_logger.handlers.copy()
+for handler in handlers:
+    root_logger.removeHandler(handler)
+
+# 只添加文件处理器到根日志记录器
+root_logger.addHandler(file_handler)
+
+# 设置根日志记录器不传播到父级处理器
+root_logger.propagate = False
 
 
 def validate_environment() -> None:  # noqa: PLR0912, PLR0915

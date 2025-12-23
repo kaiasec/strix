@@ -6,12 +6,55 @@ if [ -z "$CAIDO_PORT" ]; then
     exit 1
 fi
 
-caido-cli --listen 127.0.0.1:${CAIDO_PORT} \
-          --allow-guests \
-          --no-logging \
-          --no-open \
-          --import-ca-cert /app/certs/ca.p12 \
-          --import-ca-cert-pass "" > /dev/null 2>&1 &
+
+echo "Starting noVNC services..."
+
+# 创建必要的 X11 目录
+mkdir -p /tmp/.X11-unix
+chmod 1777 /tmp/.X11-unix
+
+# 设置显示变量
+export DISPLAY=:99
+
+# 1. 启动虚拟显示服务器
+Xvfb ${DISPLAY} -screen 0 1920x1080x24 -ac +extension RANDR > /dev/null 2>&1 &
+sleep 2
+
+# 2. 启动窗口管理器
+fluxbox > /dev/null 2>&1 &
+
+# 3. 启动 VNC 服务器
+x11vnc -display ${DISPLAY} -forever -shared -nopw -listen 0.0.0.0 > /dev/null 2>&1 &
+
+# 4. 启动 noVNC web 代理
+/opt/noVNC/utils/novnc_proxy --vnc localhost:5900 --listen 6080 > /dev/null 2>&1 &
+
+# 打印 noVNC 访问信息
+if [ -n "$NOVNC_PORT" ]; then
+    echo "✅ noVNC web interface available at: http://<host>:$NOVNC_PORT"
+else
+    echo "⚠️  NOVNC_PORT environment variable not set, using default port 6080"
+    echo "✅ noVNC web interface available at: http://<host>:6080"
+fi
+
+
+
+# caido-cli --listen 127.0.0.1:${CAIDO_PORT} \
+#           --allow-guests \
+#           --no-logging \
+#           --no-open \
+#           --import-ca-cert /app/certs/ca.p12 \
+#           --import-ca-cert-pass "" > /dev/null 2>&1 &
+# 写到/tmp目录并开启调试模式
+caido-cli \
+  --listen 127.0.0.1:${CAIDO_PORT} \
+  --allow-guests \
+  --no-open \
+  --debug \
+  --import-ca-cert /app/certs/ca.p12 \
+  --import-ca-cert-pass "" \
+  --data-path /tmp/caido_data \
+  >> /tmp/caido.log 2>&1 &
 
 echo "Waiting for Caido API to be ready..."
 for i in {1..30}; do
@@ -112,10 +155,41 @@ echo "Adding CA to browser trust store..."
 sudo -u pentester mkdir -p /home/pentester/.pki/nssdb
 sudo -u pentester certutil -N -d sql:/home/pentester/.pki/nssdb --empty-password
 sudo -u pentester certutil -A -n "Testing Root CA" -t "C,," -i /app/certs/ca.crt -d sql:/home/pentester/.pki/nssdb
+#sudo -u pentester certutil -A -n "Testing Root CA" -t "TC,," -i /app/certs/ca.crt -d sql:/home/pentester/.pki/nssdb
 echo "✅ CA added to browser trust store"
 
 echo "Container initialization complete - agents will start their own tool servers as needed"
 echo "✅ Shared container ready for multi-agent use"
+
+
+
+# echo "Starting Chrome in headless mode..."
+# /opt/chrome_offline/opt/google/chrome/chrome \
+#     --headless=new \
+#     --no-sandbox \
+#     --disable-dev-shm-usage \
+#     --remote-debugging-port=9222 \
+#     --remote-allow-origins=* \
+#     --disable-gpu \
+#     --window-size=1920,1080 \
+#     --no-first-run \
+#     --mute-audio \
+#     > /dev/null 2>&1 &
+echo "Starting Chrome with GUI and remote debugging..."
+
+/opt/chrome_offline/opt/google/chrome/chrome \
+    --no-sandbox \
+    --disable-dev-shm-usage \
+    --remote-debugging-port=9222 \
+    --remote-allow-origins=* \
+    --disable-gpu \
+    --window-size=1920,1080 \
+    --start-maximized \
+    --no-first-run \
+    --user-data-dir=/tmp/chrome-data \
+    --proxy-server="http://127.0.0.1:${CAIDO_PORT}" \
+    > /dev/null 2>&1 &
+  
 
 cd /workspace
 

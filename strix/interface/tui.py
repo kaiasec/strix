@@ -1010,7 +1010,7 @@ class StrixTUIApp(App):  # type: ignore[misc]
 
         tool_colors = {
             "terminal_execute": "#22c55e",
-            "browser_action": "#06b6d4",
+            "browser_use": "#06b6d4",
             "python_action": "#3b82f6",
             "agents_graph_action": "#fbbf24",
             "file_edit_action": "#10b981",

@@ -99,6 +99,7 @@ class DockerRuntime(AbstractRuntime):
 
                 caido_port = self._find_available_port()
                 tool_server_port = self._find_available_port()
+                novnc_host_port = self._find_available_port()  # 随机端口用于noVNC
                 tool_server_token = self._generate_sandbox_token()
 
                 self._tool_server_port = tool_server_port
@@ -113,6 +114,7 @@ class DockerRuntime(AbstractRuntime):
                     ports={
                         f"{caido_port}/tcp": caido_port,
                         f"{tool_server_port}/tcp": tool_server_port,
+                        "6080/tcp": novnc_host_port,      # noVNC web interface (容器内6080 -> 宿主机随机端口)
                     },
                     cap_add=["NET_ADMIN", "NET_RAW"],
                     labels={"strix-scan-id": scan_id},
@@ -121,6 +123,7 @@ class DockerRuntime(AbstractRuntime):
                         "CAIDO_PORT": str(caido_port),
                         "TOOL_SERVER_PORT": str(tool_server_port),
                         "TOOL_SERVER_TOKEN": tool_server_token,
+                        "NOVNC_PORT": str(novnc_host_port),  # noVNC web interface host port
                     },
                     tty=True,
                 )
