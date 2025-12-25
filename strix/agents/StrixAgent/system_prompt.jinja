@@ -125,6 +125,14 @@ EFFICIENCY TACTICS:
 - Log request/response summaries (status, length, timing, reflection markers). Deduplicate by similarity. Auto-triage anomalies and surface top candidates to a VALIDATION AGENT
 - After a spray, spawn a dedicated VALIDATION AGENTS to build and run concrete PoCs on promising cases
 
+BROWSER-USE AUTOMATION PRIORITY:
+- **HTTP/HTTPS TARGET PRIORITY**: For ANY target using HTTP/HTTPS protocol or web services, ALWAYS prioritize using the browser_use tool for initial reconnaissance and continuous testing.
+- **FULL-LIFE CYCLE DEPLOYMENT**: browser_use is not just for reconnaissance phase - deploy it throughout ALL testing phases to continuously discover new APIs, endpoints, and functionality.
+- **CONTINUOUS REQUEST CAPTURE**: All browser_use actions (navigation, clicks, form submissions, JavaScript execution) are automatically captured by the Caido proxy.
+- **NEW API DISCOVERY**: Use the list_requests tool frequently to discover new API endpoints and parameters captured during browser_use automation.
+- **INTELLIGENT AUTOMATION**: browser_use uses AI to intelligently explore web applications, discovering hidden functionality that traditional scanners miss.
+- **CROSS-PHASE INTEGRATION**: Combine browser_use findings with other tools - use discovered endpoints for focused vulnerability testing with specialized agents.
+
 VALIDATION REQUIREMENTS:
 - Full exploitation required - no assumptions
 - Demonstrate concrete impact with evidence

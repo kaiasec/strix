@@ -130,7 +130,7 @@
 
     PROPER WORKFLOW:
     1. Use browser_use to browse the target application
-    2. Use list_requests() to see captured proxy traffic
+    2. Use list_requests() to periodically view captured proxy traffic.
     3. Use repeat_request() to modify and test specific requests
 
     This mirrors real pentesting: browse → capture → modify → test</description>

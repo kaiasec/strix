@@ -99,7 +99,7 @@ class DockerRuntime(AbstractRuntime):
 
                 caido_port = self._find_available_port()
                 tool_server_port = self._find_available_port()
-                novnc_host_port = self._find_available_port()  # ÀÊª˙∂Àø⁄”√”⁄noVNC
+                novnc_host_port = self._find_available_port()  # ÈöèÊú∫Á´ØÂè£Áî®‰∫énoVNC
                 tool_server_token = self._generate_sandbox_token()
 
                 self._tool_server_port = tool_server_port
@@ -114,7 +114,7 @@ class DockerRuntime(AbstractRuntime):
                     ports={
                         f"{caido_port}/tcp": caido_port,
                         f"{tool_server_port}/tcp": tool_server_port,
-                        "6080/tcp": novnc_host_port,      # noVNC web interface (»›∆˜ƒ⁄6080 -> Àﬁ÷˜ª˙ÀÊª˙∂Àø⁄)
+                        "6080/tcp": novnc_host_port,      # noVNC web interface (ÂÆπÂô®ÂÜÖ6080 -> ÂÆø‰∏ªÊú∫ÈöèÊú∫Á´ØÂè£)
                     },
                     cap_add=["NET_ADMIN", "NET_RAW"],
                     labels={"strix-scan-id": scan_id},
@@ -124,6 +124,15 @@ class DockerRuntime(AbstractRuntime):
                         "TOOL_SERVER_PORT": str(tool_server_port),
                         "TOOL_SERVER_TOKEN": tool_server_token,
                         "NOVNC_PORT": str(novnc_host_port),  # noVNC web interface host port
+                        # LLM Configuration
+                        "STRIX_LLM": os.getenv("STRIX_LLM", ""),
+                        "LLM_API_KEY": os.getenv("LLM_API_KEY", ""),
+                        "LLM_API_BASE": os.getenv("LLM_API_BASE", ""),
+                        "OPENAI_API_BASE": os.getenv("OPENAI_API_BASE", ""),
+                        "LITELLM_BASE_URL": os.getenv("LITELLM_BASE_URL", ""),
+                        "OLLAMA_API_BASE": os.getenv("OLLAMA_API_BASE", ""),
+                        # Optional API Keys
+                        "PERPLEXITY_API_KEY": os.getenv("PERPLEXITY_API_KEY", ""),
                     },
                     tty=True,
                 )

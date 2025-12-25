@@ -1,5 +1,5 @@
-"""Browser-use tools for web automation and interaction."""
+"""Browser-use tools for AI-driven web automation."""
 
-from .browser_use_actions import *  # noqa: F403
+from .browser_use_actions import browser_use
 
 __all__ = ["browser_use"]

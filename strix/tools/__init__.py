@@ -30,7 +30,8 @@ if not SANDBOX_MODE:
     from .agents_graph import *  # noqa: F403
 
     if not DISABLE_BROWSER:
-        from .browser import *  # noqa: F403
+        #from .browser import *  # noqa: F403
+        from .browser_use import *  # noqa: F403
     from .file_edit import *  # noqa: F403
     from .finish import *  # noqa: F403
     from .notes import *  # noqa: F403
@@ -45,7 +46,8 @@ if not SANDBOX_MODE:
         from .web_search import *  # noqa: F403
 else:
     if not DISABLE_BROWSER:
-        from .browser import *  # noqa: F403
+        #from .browser import *  # noqa: F403
+        from .browser_use import *
     from .file_edit import *  # noqa: F403
     from .proxy import *  # noqa: F403
     from .python import *  # noqa: F403

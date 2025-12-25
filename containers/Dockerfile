@@ -45,7 +45,30 @@ RUN apt-get update && \
     libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libatspi2.0-0 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libpango-1.0-0 libcairo2 libasound2t64 \
     fonts-unifont fonts-noto-color-emoji fonts-freefont-ttf fonts-dejavu-core ttf-bitstream-vera \
-    libnss3-tools
+    libnss3-tools \
+    #增加noVnc
+    xvfb \
+    x11vnc \
+    x11-xkb-utils \
+    xfonts-base \
+    xfonts-100dpi \
+    xfonts-75dpi \
+    xfonts-cyrillic \
+    # 窗口管理器（可选，轻量级）
+    fluxbox \
+    # 或者更轻量的 openbox
+    # openbox \
+    # 字体补充
+    fonts-liberation \
+    # Python 依赖
+    python3-websockify \
+    && rm -rf /var/lib/apt/lists/*
+
+#下载 noVNC（使用离线或在线方式）
+RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC \
+    && git clone --depth 1 https://github.com/novnc/websockify /opt/noVNC/utils/websockify \
+    && cd /opt/noVNC && ln -sv vnc.html index.html \
+    && rm -rf /opt/noVNC/.git /opt/noVNC/utils/websockify/.git
 
 RUN setcap cap_net_raw,cap_net_admin,cap_net_bind_service+eip $(which nmap)
 
@@ -215,47 +238,24 @@ COPY strix/tools/python/ /app/strix/tools/python/
 COPY strix/tools/terminal/ /app/strix/tools/terminal/
 COPY strix/tools/proxy/ /app/strix/tools/proxy/
 
+#解决browser_use对glm模型的bug
+#这个修改解决了之前的问题：之前当 dont_force_structured_output=True 时，代码没有传递任何 response_format 参数，导致模型返回普通文本而非 JSON，从而造成解析失败
+COPY browser-use/browser-use-main/browser_use/llm/openai/chat_glm.py /app/venv/lib/python3.13/site-packages/browser_use/llm/openai/chat.py
+#解决use_vision=False仍然发送image_url给模型的bug
+COPY browser-use/browser-use-main/browser_use/agent/judge.py /app/venv/lib/python3.13/site-packages/browser_use/agent/judge.py
+COPY browser-use/browser-use-main/browser_use/agent/service.py /app/venv/lib/python3.13/site-packages/browser_use/agent/service.py
+#新增针对glm模型的prompt，原本prompt的强行调用<browser_vision>,导致LLM返回异常
+COPY browser-use/browser-use-main/browser_use/agent/prompts.py /app/venv/lib/python3.13/site-packages/browser_use/agent/prompts.py
+COPY browser-use/browser-use-main/browser_use/agent/system_prompts/system_prompt_glm_flash.md /app/venv/lib/python3.13/site-packages/browser_use/agent/system_prompts/system_prompt_glm_flash.md
+COPY browser-use/browser-use-main/browser_use/agent/system_prompts/system_prompt_glm_no_thinking.md /app/venv/lib/python3.13/site-packages/browser_use/agent/system_prompts/system_prompt_glm_no_thinking.md
+COPY browser-use/browser-use-main/browser_use/agent/system_prompts/system_prompt_glm.md /app/venv/lib/python3.13/site-packages/browser_use/agent/system_prompts/system_prompt_glm.md
+
 RUN echo 'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.npm-global/bin:$PATH"' >> /home/pentester/.bashrc && \
     echo 'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.npm-global/bin:$PATH"' >> /home/pentester/.profile
 
 USER root
 COPY containers/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-#增加noVnc
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    # X11 显示相关
-    xvfb \
-    x11vnc \
-    x11-xkb-utils \
-    xfonts-base \
-    xfonts-100dpi \
-    xfonts-75dpi \
-    xfonts-cyrillic \
-    # 窗口管理器（可选，轻量级）
-    fluxbox \
-    # 或者更轻量的 openbox
-    # openbox \
-    # 字体补充
-    fonts-liberation \
-    # Python 依赖
-    python3-websockify \
-    && rm -rf /var/lib/apt/lists/*
-
-# 下载 noVNC（使用离线或在线方式）
-RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC \
-    && git clone --depth 1 https://github.com/novnc/websockify /opt/noVNC/utils/websockify \
-    && cd /opt/noVNC && ln -sv vnc.html index.html \
-    && rm -rf /opt/noVNC/.git /opt/noVNC/utils/websockify/.git
-
-# 或者使用离线下载（如果网络受限）
-# COPY noVNC.tar.gz /tmp/
-# RUN tar -xzf /tmp/noVNC.tar.gz -C /opt/ \
-#     && mv /opt/noVNC-* /opt/noVNC \
-#     && ln -sv /opt/noVNC/vnc.html /opt/noVNC/index.html
-
 
 USER pentester
 WORKDIR /workspace

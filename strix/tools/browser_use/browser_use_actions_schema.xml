@@ -1,130 +1,50 @@
-<?xml version="1.0" ?>
-<tools>
-  <tool name="browser_use">
-    <description>自动化浏览点击工具。执行网页自动化任务，当发现新的URL时实时返回变化信息，由Strix决定是否调用list_requests进行下一步分析。该浏览器是持久化的，除非显式关闭，否则将保持活动状态，从而允许browser_use持续自动化发现新的URL。
-
-优先级说明：只要是HTTP/HTTPS网站目标，Strix应优先使用browser_use进行扫描。</description>
-    <parameters>
-      <parameter name="action" type="string" required="true">
-        <description>操作类型。有效值：
-- "start": 启动新会话，执行自动化任务
-- "check": 检查活动会话的URL变化
-- "status": 获取会话状态
-- "list": 列出所有会话</description>
-      </parameter>
-      <parameter name="task" type="string" required="false">
-        <description>仅对"start" action必需。自动化任务描述。示例：
-- "探索http://example.com网站的所有功能和页面"
-- "在http://target.com注册新用户，填写用户名、邮箱和密码"
-- "登录http://admin.site.com后台，查看用户管理功能"
-- "从http://data.site.com提取产品列表和价格信息"
-- "测试http://app.site.com的搜索功能和筛选条件"
-- "登录http://login.site.com系统，使用用户名admin，密码admin123"
-- "在http://auth.site.com进行身份验证，输入邮箱user@example.com，密码SecurePass123"
-- "访问http://dashboard.site.com管理面板，浏览所有菜单选项"
-- "测试http://api.site.com的登录接口，提交JSON格式的凭证"
-- "绕过http://secure.site.com的登录验证，尝试常见弱密码"
-- "在http://oauth.site.com完成OAuth2授权流程，获取访问令牌"
-- "模拟用户登录http://app.site.com，执行完整的会话管理操作"</description>
-      </parameter>
-      <parameter name="max_steps" type="integer" required="false">
-        <description>仅对"start" action有效。最大执行步数，默认50。</description>
-      </parameter>
-      <parameter name="session_id" type="string" required="false">
-        <description>仅对"check"、"status" action有效。会话ID，用于指定要操作的会话。如果不提供，将使用活动会话。</description>
-      </parameter>
-    </parameters>
-    <returns type="Dict[str, Any]">
-      <description>返回结果根据action类型不同：
-- start: 包含session_id、task、max_steps、start_time、message等
-- check: 包含session_id、task、new_changes、new_changes_count、total_changes、running_time等
-- status: 包含session_id、task、is_running、start_time、running_time、total_changes等
-- list: 包含sessions、total_sessions、active_session_id等
-
-当检测到新URL时，Strix应决定是否调用list_requests分析捕获的流量。</description>
-    </returns>
-    <notes>
-重要使用规则：
-1. PERSISTENCE: browser-use会话是持久化的，将保持活动状态直到任务完成。
-2. 代理集成: browser-use通过Caido代理运行，所有HTTP流量都会被捕获。browser-use发现的每个新URL，其对应的请求都会在代理中记录，可通过list_requests查看。
-3. Python协调中心: Python工具(python_action)是驱动完整安全测试流程的协调中心。Python会话预导入了所有代理函数(list_requests, view_request, repeat_request等)，可以编写复杂的安全分析逻辑，自动化整个测试流程。
-4. 持续监控循环: Strix应使用Python工具建立自动化监控循环。典型模式：创建Python会话 → 循环执行：browser_use(check)检查新URL → list_requests()查看捕获的流量 → 分析决策 → repeat_request()测试可疑请求 → 重复。
-5. 及时决策: 每当check返回新URL变化时，应立即在Python会话中调用list_requests进行下一步分析。不要等待，browser-use在持续运行。
-6. 会话管理: 使用start启动新会话，check检查URL变化，status获取状态，list列出会话。
-7. 防止重复启动: 如果已有活动会话，再次调用start将返回错误。
-8. URL变化检测: browser-use独立运行，检测到URL变化时实时记录。
-9. Strix决策责任: Strix负责分析新发现的URL，决定是否进行深度分析（list_requests）、查看详情（view_request）或测试（repeat_request）。建议使用Python工具自动化这一决策过程。
-10. 与proxy工具集成: browser-use发现的URL会自动被代理捕获。Python会话可以直接调用list_requests查看这些请求，使用view_request查看详情，使用repeat_request进行测试。
-11. 典型工作流:
-    - Step 1: browser_use(start)启动自动化浏览
-    - Step 2: python_action(new_session)创建Python分析会话
-    - Step 3: Python循环:
-        browser_use(check) → 发现新URL →
-        list_requests()查看捕获的流量 →
-        分析流量，决策是否测试 →
-        repeat_request()测试可疑请求 →
-        重复直到任务完成
-12. 会话ID: 每个会话有唯一ID，用于后续操作引用。
-13. 活动会话: 只允许一个活动会话，防止资源冲突。
-14. 独立运行: browser-use在独立线程中运行，不受Strix控制，只通过check查询状态。
-15. 错误处理: 提供清晰的错误信息和状态反馈。
-    </notes>
-    <examples>
-  # 启动新会话
-  <function=browser_use>
-  <parameter=action>start</parameter>
-  <parameter=task>探索http://example.com网站的所有导航菜单和功能页面</parameter>
-  <parameter=max_steps>50</parameter>
-  </function>
-  
-  # 检查URL变化
-  <function=browser_use>
-  <parameter=action>check</parameter>
-  </function>
-  
-  # 检查指定会话
-  <function=browser_use>
-  <parameter=action>check</parameter>
-  <parameter=session_id>abc123def456</parameter>
-  </function>
-  
-  # 获取会话状态
-  <function=browser_use>
-  <parameter=action>status</parameter>
-  </function>
-  
-  # 列出所有会话
-  <function=browser_use>
-  <parameter=action>list</parameter>
-  </function>
-  
-  # 注册用户示例
-  <function=browser_use>
-  <parameter=action>start</parameter>
-  <parameter=task>在http://signup.site.com注册新用户，填写用户名user123，邮箱user@test.com，密码Pass@123</parameter>
-  <parameter=max_steps>30</parameter>
-  </function>
-  
-  # 登录系统示例
-  <function=browser_use>
-  <parameter=action>start</parameter>
-  <parameter=task>登录http://login.site.com系统，使用用户名admin，密码admin123，访问管理面板</parameter>
-  <parameter=max_steps>40</parameter>
-  </function>
-  
-  # OAuth2授权示例
-  <function=browser_use>
-  <parameter=action>start</parameter>
-  <parameter=task>在http://oauth.site.com完成OAuth2授权流程，使用客户端ID client123，密钥secret456，获取访问令牌</parameter>
-  <parameter=max_steps>60</parameter>
-  </function>
-  
-  # 身份验证测试示例
-  <function=browser_use>
-  <parameter=action>start</parameter>
-  <parameter=task>测试http://auth.site.com的身份验证机制，尝试常见弱密码组合，记录响应</parameter>
-  <parameter=max_steps>25</parameter>
-  </function>
-    </examples>
-  </tool>
-</tools>
+<tool name="browser_use">
+<description>
+browser_use工具：执行AI驱动的浏览器自动化任务。使用browser-use库，通过LLM控制浏览器完成复杂任务。
+browser_use执行的所有浏览器操作（导航、点击、输入、表单提交等）都会被系统捕获，包括：
+1、访问的URL和页面跳转
+2、触发的网络请求和响应
+3、执行的JavaScript代码
+4、产生的控制台日志
+通过list_requests工具可以查看browser_use执行过程中产生的所有网络请求。
+</description>
+<parameters>
+<parameter name="task" type="string" required="true">
+任务描述，使用自然语言描述你想要浏览器完成的任务。
+</parameter>
+</parameters>
+<returns>
+返回执行状态的字典：
+- status: "started"（任务已启动）或"error"（执行错误）
+- task: 原始任务描述
+- message: 状态消息
+</returns>
+<examples>
+<example>
+<user_query>测试网站功能</user_query>
+<tool_call>
+<tool_calls>
+<tool_call>
+<tool_name>browser_use</tool_name>
+<args>
+<task>探索网站https://example.com的所有功能，点击所有可交互元素</task>
+</args>
+</tool_call>
+</tool_calls>
+</tool_call>
+<expected_result>
+{
+  "status": "started",
+  "task": "探索网站https://example.com的所有功能，点击所有可交互元素",
+  "message": "浏览器自动化任务已启动"
+}
+</expected_result>
+</example>
+</examples>
+<notes>
+1. browser_use启动异步任务后立即返回，不阻塞当前执行
+2. 任务执行过程中的思考过程、动作记录和提取内容会通过日志记录
+3. browser_use执行过程中产生的所有网络请求可以通过list_requests工具查看
+4. 任务执行会实时更新思考过程、动作记录和提取内容
+</notes>
+</tool>
