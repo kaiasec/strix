@@ -449,6 +449,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				use_thinking=self.settings.use_thinking,
 				flash_mode=self.settings.flash_mode,
 				is_anthropic=is_anthropic,
+				model=self.llm.model if hasattr(self.llm, 'model') else None, #新增模型参数
 			).get_system_message(),
 			file_system=self.file_system,
 			state=self.state.message_manager_state,

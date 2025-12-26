@@ -23,12 +23,14 @@ class SystemPrompt:
 		flash_mode: bool = False,
 		is_anthropic: bool = False,
 		is_browser_use_model: bool = False,
+		model: str | None = None, #新增模型参数
 	):
 		self.max_actions_per_step = max_actions_per_step
 		self.use_thinking = use_thinking
 		self.flash_mode = flash_mode
 		self.is_anthropic = is_anthropic
 		self.is_browser_use_model = is_browser_use_model
+		self.model = model  #新增模型参数
 		prompt = ''
 		if override_system_message is not None:
 			prompt = override_system_message
@@ -46,6 +48,15 @@ class SystemPrompt:
 		try:
 			# Choose the appropriate template based on model type and mode
 			# Browser-use models use simplified prompts optimized for fine-tuned models
+			# 新增：GLM 模型专用模板
+			if self.model and 'glm' in self.model.lower():
+				if self.flash_mode:
+					template_filename = 'system_prompt_glm_flash.md'
+				elif self.use_thinking:
+					template_filename = 'system_prompt_glm.md'
+				else:
+					template_filename = 'system_prompt_glm_no_thinking.md'
+			# 原有逻辑保持不变
 			if self.is_browser_use_model:
 				if self.flash_mode:
 					template_filename = 'system_prompt_browser_use_flash.md'

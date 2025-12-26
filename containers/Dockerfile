@@ -2,6 +2,7 @@ FROM kalilinux/kali-rolling:latest
 
 LABEL description="AI Agent Penetration Testing Environment with Comprehensive Automated Tools"
 
+
 # 1改动,设置清华源
 RUN echo "deb http://mirrors.tuna.tsinghua.edu.cn/kali kali-rolling main non-free contrib" > /etc/apt/sources.list
 
@@ -210,6 +211,16 @@ RUN mkdir -p /workspace && chown -R pentester:pentester /workspace /app
 COPY pyproject.toml poetry.lock ./
 
 USER pentester
+
+# #兼容老架构，禁用 X86_V2
+# ENV NPY_DISABLE_CPU_FEATURES='X86_V2'
+ENV CFLAGS='-march=x86-64 -mtune=generic'
+ENV CXXFLAGS='-march=x86-64 -mtune=generic'
+# 设置环境变量（对所有进程生效）
+ENV NPY_DISABLE_CPU_FEATURES="X86_V2"
+ENV NPY_BLAS_ORDER=""
+ENV NPY_LAPACK_ORDER=""
+
 
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
