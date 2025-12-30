@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -30,16 +31,16 @@ class Tracer:
         self.start_time = datetime.now(UTC).isoformat()
         self.end_time: str | None = None
 
-        self.agents: dict[str, dict[str, Any]] = {}
-        self.tool_executions: dict[int, dict[str, Any]] = {}
-        self.chat_messages: list[dict[str, Any]] = []
-
-        self.vulnerability_reports: list[dict[str, Any]] = []
+        # 私有数据结构
+        self._agents: dict[str, dict[str, Any]] = {}
+        self._tool_executions: dict[int, dict[str, Any]] = {}
+        self._chat_messages: list[dict[str, Any]] = []
+        self._vulnerability_reports: list[dict[str, Any]] = []
         self.final_scan_result: str | None = None
 
-        self.scan_results: dict[str, Any] | None = None
-        self.scan_config: dict[str, Any] | None = None
-        self.run_metadata: dict[str, Any] = {
+        self._scan_results: dict[str, Any] | None = None
+        self._scan_config: dict[str, Any] | None = None
+        self._run_metadata: dict[str, Any] = {
             "run_id": self.run_id,
             "run_name": self.run_name,
             "start_time": self.start_time,
@@ -53,6 +54,56 @@ class Tracer:
         self._saved_vuln_ids: set[str] = set()
 
         self.vulnerability_found_callback: Callable[[str, str, str, str], None] | None = None
+
+        # 可重入锁，避免死锁
+        self._lock = threading.RLock()
+
+    # 公开的只读属性 - 返回线程安全的快照
+    @property
+    def agents(self) -> dict[str, dict[str, Any]]:
+        """Thread-safe read access to agents dictionary."""
+        with self._lock:
+            return dict(self._agents)
+
+    @property
+    def tool_executions(self) -> dict[int, dict[str, Any]]:
+        """Thread-safe read access to tool_executions dictionary."""
+        with self._lock:
+            return dict(self._tool_executions)
+
+    @property
+    def chat_messages(self) -> list[dict[str, Any]]:
+        """Thread-safe read access to chat_messages list."""
+        with self._lock:
+            return list(self._chat_messages)
+
+    @property
+    def vulnerability_reports(self) -> list[dict[str, Any]]:
+        """Thread-safe read access to vulnerability_reports list."""
+        with self._lock:
+            return list(self._vulnerability_reports)
+
+    @property
+    def scan_results(self) -> dict[str, Any] | None:
+        """Thread-safe read access to scan_results dictionary."""
+        with self._lock:
+            if self._scan_results is None:
+                return None
+            return dict(self._scan_results)
+
+    @property
+    def scan_config(self) -> dict[str, Any] | None:
+        """Thread-safe read access to scan_config dictionary."""
+        with self._lock:
+            if self._scan_config is None:
+                return None
+            return dict(self._scan_config)
+
+    @property
+    def run_metadata(self) -> dict[str, Any]:
+        """Thread-safe read access to run_metadata dictionary."""
+        with self._lock:
+            return dict(self._run_metadata)
 
     def set_run_name(self, run_name: str) -> None:
         self.run_name = run_name
@@ -75,17 +126,19 @@ class Tracer:
         content: str,
         severity: str,
     ) -> str:
-        report_id = f"vuln-{len(self.vulnerability_reports) + 1:04d}"
+        with self._lock:
+            report_id = f"vuln-{len(self._vulnerability_reports) + 1:04d}"
 
-        report = {
-            "id": report_id,
-            "title": title.strip(),
-            "content": content.strip(),
-            "severity": severity.lower().strip(),
-            "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        }
+            report = {
+                "id": report_id,
+                "title": title.strip(),
+                "content": content.strip(),
+                "severity": severity.lower().strip(),
+                "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            }
 
-        self.vulnerability_reports.append(report)
+            self._vulnerability_reports.append(report)
+
         logger.info(f"Added vulnerability report: {report_id} - {title}")
 
         if self.vulnerability_found_callback:
@@ -103,7 +156,7 @@ class Tracer:
     ) -> None:
         self.final_scan_result = content.strip()
 
-        self.scan_results = {
+        self._scan_results = {
             "scan_completed": True,
             "content": content,
             "success": success,
@@ -126,7 +179,8 @@ class Tracer:
             "tool_executions": [],
         }
 
-        self.agents[agent_id] = agent_data
+        with self._lock:
+            self._agents[agent_id] = agent_data
 
     def log_chat_message(
         self,
@@ -147,7 +201,8 @@ class Tracer:
             "metadata": metadata or {},
         }
 
-        self.chat_messages.append(message_data)
+        with self._lock:
+            self._chat_messages.append(message_data)
         return message_id
 
     def log_tool_execution_start(self, agent_id: str, tool_name: str, args: dict[str, Any]) -> int:
@@ -167,39 +222,43 @@ class Tracer:
             "completed_at": None,
         }
 
-        self.tool_executions[execution_id] = execution_data
-
-        if agent_id in self.agents:
-            self.agents[agent_id]["tool_executions"].append(execution_id)
+        with self._lock:
+            self._tool_executions[execution_id] = execution_data
+            if agent_id in self._agents:
+                self._agents[agent_id]["tool_executions"].append(execution_id)
 
         return execution_id
 
     def update_tool_execution(
         self, execution_id: int, status: str, result: Any | None = None
     ) -> None:
-        if execution_id in self.tool_executions:
-            self.tool_executions[execution_id]["status"] = status
-            self.tool_executions[execution_id]["result"] = result
-            self.tool_executions[execution_id]["completed_at"] = datetime.now(UTC).isoformat()
+        with self._lock:
+            if execution_id in self._tool_executions:
+                self._tool_executions[execution_id]["status"] = status
+                self._tool_executions[execution_id]["result"] = result
+                self._tool_executions[execution_id]["completed_at"] = datetime.now(UTC).isoformat()
 
     def update_agent_status(
         self, agent_id: str, status: str, error_message: str | None = None
     ) -> None:
-        if agent_id in self.agents:
-            self.agents[agent_id]["status"] = status
-            self.agents[agent_id]["updated_at"] = datetime.now(UTC).isoformat()
-            if error_message:
-                self.agents[agent_id]["error_message"] = error_message
+        with self._lock:
+            if agent_id in self._agents:
+                self._agents[agent_id]["status"] = status
+                self._agents[agent_id]["updated_at"] = datetime.now(UTC).isoformat()
+                if error_message:
+                    self._agents[agent_id]["error_message"] = error_message
 
     def set_scan_config(self, config: dict[str, Any]) -> None:
-        self.scan_config = config
-        self.run_metadata.update(
-            {
-                "targets": config.get("targets", []),
-                "user_instructions": config.get("user_instructions", ""),
-                "max_iterations": config.get("max_iterations", 200),
-            }
-        )
+        self._scan_config = dict(config)
+
+        with self._lock:
+            self._run_metadata.update(
+                {
+                    "targets": config.get("targets", []),
+                    "user_instructions": config.get("user_instructions", ""),
+                    "max_iterations": config.get("max_iterations", 200),
+                }
+            )
         self.get_run_dir()
 
     def save_run_data(self, mark_complete: bool = False) -> None:
@@ -220,13 +279,16 @@ class Tracer:
                     f"Saved final penetration test report to: {penetration_test_report_file}"
                 )
 
-            if self.vulnerability_reports:
+            with self._lock:
+                vuln_reports_snapshot = list(self._vulnerability_reports)
+
+            if vuln_reports_snapshot:
                 vuln_dir = run_dir / "vulnerabilities"
                 vuln_dir.mkdir(exist_ok=True)
 
                 new_reports = [
                     report
-                    for report in self.vulnerability_reports
+                    for report in vuln_reports_snapshot
                     if report["id"] not in self._saved_vuln_ids
                 ]
 
@@ -241,10 +303,10 @@ class Tracer:
                         f.write(f"{report['content']}\n")
                     self._saved_vuln_ids.add(report["id"])
 
-                if self.vulnerability_reports:
+                if vuln_reports_snapshot:
                     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
                     sorted_reports = sorted(
-                        self.vulnerability_reports,
+                        vuln_reports_snapshot,
                         key=lambda x: (severity_order.get(x["severity"], 5), x["timestamp"]),
                     )
 
@@ -289,18 +351,20 @@ class Tracer:
         return 0.0
 
     def get_agent_tools(self, agent_id: str) -> list[dict[str, Any]]:
-        return [
-            exec_data
-            for exec_data in self.tool_executions.values()
-            if exec_data.get("agent_id") == agent_id
-        ]
+        with self._lock:
+            return [
+                dict(exec_data)
+                for exec_data in self._tool_executions.values()
+                if exec_data.get("agent_id") == agent_id
+            ]
 
     def get_real_tool_count(self) -> int:
-        return sum(
-            1
-            for exec_data in self.tool_executions.values()
-            if exec_data.get("tool_name") not in ["scan_start_info", "subagent_start_info"]
-        )
+        with self._lock:
+            return sum(
+                1
+                for exec_data in self._tool_executions.values()
+                if exec_data.get("tool_name") not in ["scan_start_info", "subagent_start_info"]
+            )
 
     def get_total_llm_stats(self) -> dict[str, Any]:
         from strix.tools.agents_graph.agents_graph_actions import _agent_instances
